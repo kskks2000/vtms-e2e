@@ -1,0 +1,62 @@
+# Auto detect text files and normalize line endings to LF in the repository
+* text=auto eol=lf
+
+# =========================
+# Explicit text files
+# =========================
+*.md      text
+*.txt     text
+*.json    text
+*.yml     text
+*.yaml    text
+*.xml     text
+*.html    text
+*.css     text
+*.scss    text
+*.js      text
+*.jsx     text
+*.ts      text
+*.tsx     text
+*.java    text
+*.py      text
+*.sh      text eol=lf
+*.gitignore     text
+*.gitattributes text
+
+# Windows scripts should keep CRLF
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# =========================
+# Binary files (do not diff / do not normalize)
+# =========================
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.tar   binary
+*.7z    binary
+*.jar   binary
+*.war   binary
+*.class binary
+*.exe   binary
+*.dll   binary
+*.so    binary
+*.dylib binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+
+# =========================
+# Linguist (GitHub language stats)
+# =========================
+docs/* linguist-documentation
+*.min.js linguist-generated
+*.min.css linguist-generated
