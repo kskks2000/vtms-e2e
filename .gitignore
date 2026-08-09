@@ -115,3 +115,8 @@ venv/
 *.pid
 *.seed
 *.lock.json
+
+# =========================
+# Superpowers (agent scratch workspace)
+# =========================
+.superpowers/
