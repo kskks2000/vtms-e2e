@@ -10,7 +10,8 @@
 
 ## Global Constraints
 
-- 대상 서버는 `BASE_URL` 환경변수로 전환한다 (기본: 로컬 `flutter run -d web-server`, 필요 시 라이브 `http://www.logistics.ai.kr`). `BASE_URL`이 없으면 설정 로드 시점에 명확한 에러로 실패한다.
+- 대상 서버는 `BASE_URL` 환경변수로 전환한다 (기본: 로컬 프로덕션 빌드 정적 서빙, 필요 시 라이브 `http://www.logistics.ai.kr`). `BASE_URL`이 없으면 설정 로드 시점에 명확한 에러로 실패한다.
+- **로컬 서버는 반드시 `flutter build web` 프로덕션 빌드를 정적으로 서빙한다 — `flutter run -d web-server`(개발 모드, DDC/DWDS hot-reload)는 사용하지 않는다.** Task 1 구현 중 실제로 확인됨: `flutter run -d web-server`는 Playwright의 자동화된 Chromium이 접속했을 때 정적 에셋은 전부 로드되지만 Dart `main()`이 전혀 실행되지 않고 무한정 멈춘다(120초+ 대기해도 DOM 변화 없음, single-debug-connection 계열의 dev-tooling 한계로 추정). `flutter build web` 결과물(`build/web`)을 `python3 -m http.server` 같은 평범한 정적 서버로 서빙하면 정상 동작한다.
 - 브라우저는 Chromium 데스크탑 뷰포트(1280×800) 1개 프로젝트만 구성한다. 모바일/태블릿 반응형 뷰포트는 범위 밖.
 - CI(GitHub Actions 등)는 이번 단계에서 구성하지 않는다. 로컬 실행(`npx playwright test`)만 지원한다.
 - 실패 시 트레이스는 `on-first-retry`, 스크린샷은 `only-on-failure`로 보관한다. HTML 리포터를 사용한다.
@@ -23,7 +24,7 @@
 
 이 플랜의 테스트는 두 가지 외부 의존성이 준비되어 있어야 실제로 통과한다. 코드/설정 작성 자체는 이 의존성 없이도 진행할 수 있지만, **각 태스크의 "테스트 실행" 스텝을 실제로 초록불로 만들려면** 아래가 필요하다:
 
-1. **로컬 VTMS 웹 서버**: `../vtms` 저장소에서 `flutter pub get && flutter run -d web-server --web-port=8090` (또는 원하는 포트)로 앱을 띄워둔다. `.env.local`의 `BASE_URL`을 이 주소로 맞춘다.
+1. **로컬 VTMS 웹 서버**: `../vtms` 저장소에서 백엔드(`cd backend && .venv/bin/python -m uvicorn app.main:app --port 8000`)를 띄우고, 프론트는 `API_BASE_URL=http://localhost:8000 bash scripts/build_web.sh`로 프로덕션 빌드한 뒤 `cd build/web && python3 -m http.server 3000`으로 정적 서빙한다(`flutter run -d web-server`는 쓰지 않는다 — 위 Global Constraints 참고). CORS가 `http://localhost:3000`을 허용하도록 이미 구성되어 있으므로 `.env.local`의 `BASE_URL`은 `http://localhost:3000`(반드시 `127.0.0.1`이 아닌 `localhost`)으로 맞춘다.
 2. **E2E 전용 테스트 계정**: VTMS의 Firebase Auth + 백엔드 사용자 테이블에 실제로 로그인 가능한 계정(이메일/비밀번호)이 있어야 한다. 이 계정 생성은 이 플랜의 범위 밖이며(vtms 백엔드/Firebase 콘솔 작업), 이미 존재하는 계정을 `.env.local`의 `TEST_USER_EMAIL`/`TEST_USER_PASSWORD`에 채워 넣는다.
 
 Task 2, 3은 이 테스트 계정이 없으면 실행 자체가 명확한 에러로 실패하도록 만든다(조용히 스킵하지 않는다).
