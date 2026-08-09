@@ -1,0 +1,17 @@
+{
+  "name": "vtms-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VTMS 웹 앱(Flutter web)에 대한 Playwright E2E 테스트",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.2.0",
+    "dotenv": "^17.4.2",
+    "typescript": "^7.0.2"
+  }
+}
