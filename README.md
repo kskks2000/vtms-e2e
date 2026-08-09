@@ -5,22 +5,25 @@ VTMS 웹 앱(Flutter web)에 대한 Playwright E2E 테스트 프로젝트. `../v
 
 ## 준비
 
-1. `../vtms`에서 로컬 웹 서버를 띄운다:
+1. `../vtms`에서 프로덕션 빌드를 만들고 정적 서버로 서빙한다:
    ```bash
    cd ../vtms
-   flutter pub get
-   flutter run -d web-server --web-port=8090
+   API_BASE_URL=http://localhost:8000 bash scripts/build_web.sh
+   cd build/web && python3 -m http.server 3000
    ```
+   (주의: `flutter run -d web-server`는 hot-reload 개발 서버라 Playwright 자동화와 호환되지 않습니다. 반드시 프로덕션 빌드로 정적 서빙을 해야 합니다.)
+
 2. 이 저장소에서 의존성을 설치한다:
    ```bash
    npm install
    npx playwright install chromium
    ```
+
 3. `.env.example`을 복사해 `.env.local`을 만들고 값을 채운다:
    ```bash
    cp .env.example .env.local
    ```
-   - `BASE_URL`: 위에서 띄운 로컬 주소 (예: `http://localhost:8090`)
+   - `BASE_URL`: `http://localhost:3000` (위의 정적 서버 주소, CORS를 위해 127.0.0.1이 아닌 localhost 사용)
    - `TEST_USER_EMAIL` / `TEST_USER_PASSWORD`: 실제로 로그인 가능한 VTMS 테스트 계정
 
 ## 실행

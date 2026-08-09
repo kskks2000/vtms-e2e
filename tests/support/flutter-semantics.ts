@@ -10,7 +10,7 @@ import type { Page } from '@playwright/test';
 export async function enableFlutterSemantics(page: Page): Promise<void> {
   const placeholder = page.locator('flt-semantics-placeholder');
   await placeholder.waitFor({ state: 'attached', timeout: 30_000 });
-  await placeholder.click();
+  await placeholder.dispatchEvent('click');
   await placeholder.waitFor({ state: 'detached', timeout: 30_000 });
 }
 
@@ -18,6 +18,6 @@ export async function gotoAndEnableSemantics(
   page: Page,
   path: string,
 ): Promise<void> {
-  await page.goto(path);
+  await page.goto(`/#${path}`);
   await enableFlutterSemantics(page);
 }
