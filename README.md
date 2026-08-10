@@ -24,6 +24,7 @@ VTMS 웹 앱(Flutter web)에 대한 Playwright E2E 테스트 프로젝트. `../v
    cp .env.example .env.local
    ```
    - `BASE_URL`: `http://localhost:3000` (위의 정적 서버 주소, CORS를 위해 127.0.0.1이 아닌 localhost 사용)
+   - `API_BASE_URL`: `http://localhost:8000` (VTMS 백엔드 주소. 마스터 CRUD 테스트가 데이터 정리를 위해 백엔드 API를 직접 호출할 때 쓴다 — 왜 UI 삭제를 안 쓰는지는 "알려진 제한사항" 참고)
    - `TEST_USER_EMAIL` / `TEST_USER_PASSWORD`: 실제로 로그인 가능한 VTMS 테스트 계정
 
 ## 실행
@@ -56,9 +57,11 @@ tests/
   support/flutter-semantics.ts   # 접근성 활성화 헬퍼
   support/env.ts                 # 필수 환경변수 검증 헬퍼
   support/reliable-fill.ts       # fill()이 커밋되지 않는 레이스를 방어하는 헬퍼
+  support/master-api.ts          # 마스터 CRUD 테스트 데이터를 백엔드 API로 직접 등록/삭제
   auth/login.spec.ts             # 로그인 성공/실패/유효성 검사
   smoke/app-loads.spec.ts        # 로그인 화면 로드 + 접근성 트리 활성화 스모크
   smoke/modules.spec.ts          # 8개 모듈 내비게이션 스모크
+  master/partners-crud.spec.ts   # 마스터 · 거래처 등록/수정 (삭제는 알려진 버그로 제외)
 global-setup.ts                  # 1회 로그인 → storageState 저장
 ```
 
@@ -78,3 +81,42 @@ global-setup.ts                  # 1회 로그인 → storageState 저장
   `TEST_USER_PASSWORD`가 평문으로 남는다. `playwright-report/`와
   `test-results/`는 이미 `.gitignore`에 포함되어 있어 저장소 유출은
   아니지만, 이 아티팩트를 공유할 때는 주의해야 한다.
+- **마스터 화면의 삭제 확인 다이얼로그가 실제로는 삭제하지 않는다 (실제
+  앱 버그)**: "삭제" 확인 버튼을 누르면 다이얼로그는 닫히지만 백엔드로
+  DELETE 요청이 전혀 전송되지 않고, 화면이 이후 상호작용에 응답하지
+  않는 상태가 된다(네트워크 로그로 직접 확인 — DELETE 요청 0회). 백엔드
+  DELETE API 자체는 정상 동작한다(직접 호출하면 204 반환). vtms 소스는
+  건드리지 않기로 했으므로, 테스트에서 만든 데이터 정리는 항상 UI가
+  아니라 `tests/support/master-api.ts`로 백엔드 API를 직접 호출한다.
+  마스터 화면의 삭제 동작 자체를 검증하는 테스트는 이 버그가 해결되기
+  전까지 작성하지 않는다.
+- **검색창은 입력 즉시 접근성 라벨이 사라진다**: 마스터 화면의 검색
+  필드는 `labelText`가 아니라 `hintText`만 쓴다(폼 필드와 다름). Flutter는
+  hintText 기반 접근성 라벨을 필드가 비어있을 때만 노출하고, 값이 입력된
+  순간 그 라벨을 지운다(실측: 입력 직후 `getByLabel('검색')`이 요소를
+  0개 찾음, `aria-label`이 `null`이 됨 — 실제 `<input>`은 값과 함께 여전히
+  존재/가시 상태). `fill()`이나 `press()`를 검색 필드에 다시 걸면 최대
+  타임아웃까지 멈춘다. `tests/master/partners-crud.spec.ts`의
+  `searchAndWaitForSingleResult`처럼, 비어있을 때 한 번 클릭해 포커스를
+  준 뒤 `page.keyboard.type()` / `page.keyboard.press('Enter')`로 우회한다
+  (포커스된 엘리먼트 기준으로 동작해 라벨 재조회가 필요 없다).
+- **텍스트 필드를 채운 뒤 곧바로 다른 필드를 채우거나 제출하면 값이
+  유실될 수 있다**: `fill()`로 DOM `<input>`의 값은 정확히 써져도, 그
+  값이 Flutter의 Dart 쪽 폼 상태(TextEditingController)로 넘어가는 데
+  별도의 비동기 시간이 걸린다. 이 동기화가 끝나기 전에 제출하면, 그
+  필드가 처음 열렸을 때의 초기값(대개 빈 문자열, 수정 폼이면 수정 전
+  값)으로 저장된다 — 네트워크 로그로 실제 요청 바디까지 확인된 사실이다.
+  `tests/support/reliable-fill.ts`의 `fillReliably`(단일 필드, DOM 확인
+  후 짧게 settle)와 `fillFieldsReliably`(여러 필드를 채운 뒤 제출 직전에
+  전체를 한 번 더 검증·재입력)로 방어하지만, 100% 결정론적이지는 않다 —
+  드물게 첫 시도에서 실패해도 `retries: 1`이 잡아 최종적으로는 통과하는
+  경우가 있다(6회 연속 전체 스위트 실행에서 전부 최종 통과 확인, 개별
+  시도 단위로는 가끔 flaky). 새 폼 상호작용 테스트를 작성할 때는 반드시
+  이 두 헬퍼를 통해 입력하고, 일반 `fill()`을 직접 쓰지 않는다.
+- **로컬 실행이 이유 없이 로그인부터 막히면 시스템 시계를 의심할 것**:
+  Firebase가 발급한 ID 토큰의 타임스탬프가 로컬 시계보다 미래로 보이면
+  백엔드가 `유효하지 않은 Firebase 토큰입니다: Token used too early`로
+  거부한다(수 초 이내의 시계 오차로도 발생). `sntp -sS time.apple.com`
+  (또는 시스템 설정 > 일반 > 날짜 및 시간에서 "자동으로 설정" 껐다 켜기)
+  으로 시계를 동기화하면 해결된다. 이 프로젝트나 vtms 코드와는 무관한
+  로컬 환경 문제다.
