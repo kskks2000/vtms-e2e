@@ -17,7 +17,8 @@
 - 실패 시 트레이스는 `on-first-retry`, 스크린샷은 `only-on-failure`로 보관한다. HTML 리포터를 사용한다.
 - 8개 모듈과 경로(확정, `vtms/lib/core/navigation/app_destinations.dart` 및 `app_router.dart` 기준): 마스터(`/master`), 오더 생성(`/order`), 운송계획(`/planning`), 실행(`/execution`), 트래킹(`/tracking`), 실적(`/performance`), 정산(`/settlement`), KPI(`/kpi`).
 - 로그인 화면 필드/버튼 텍스트(확정, `vtms/lib/features/auth/login_screen.dart` 기준): 이메일 필드 라벨 `이메일`, 비밀번호 필드 라벨 `비밀번호`, 제출 버튼 텍스트 `로그인`(Google 로그인 버튼은 `Google 계정으로 로그인`이라 부분 문자열이 겹치므로 로케이터는 반드시 `exact: true`를 쓴다), 빈 이메일 에러 `이메일을 입력해 주세요.`, 빈 비밀번호 에러 `비밀번호를 입력해 주세요.`, 잘못된 자격증명 에러(`vtms/lib/core/auth/firebase_auth_service.dart`의 `wrong-password`/`user-not-found`/`invalid-credential`) `이메일 또는 비밀번호가 올바르지 않습니다.`
-- 범위 밖: 모듈별 상세 CRUD/폼 플로우, 반응형 뷰포트 테스트, 안드로이드 앱 E2E, CI 파이프라인, Google OAuth 로그인 자동화.
+- **좌측/하단 내비게이션 레일은 접근성(semantics) 트리에 전혀 노출되지 않는다** (Task 2 구현 중 실제로 확인됨: role 불일치가 아니라 해당 영역에 접근성 노드 자체가 없음 — 순수 캔버스 렌더링으로 추정, `Semantics` 위젯이 없는 것으로 보임). 따라서 모듈 간 이동은 내비게이션 아이템을 클릭하는 대신 해시 기반 URL로 직접 이동한다(예: `page.goto('/#/order')`). vtms 소스는 건드리지 않는다 — 이 사실은 참고용으로만 기록하고, 접근성 개선은 이 플랜의 범위 밖이다.
+- 범위 밖: 모듈별 상세 CRUD/폼 플로우, 반응형 뷰포트 테스트, 안드로이드 앱 E2E, CI 파이프라인, Google OAuth 로그인 자동화, VTMS 앱 소스 수정(접근성 포함).
 - `.env.local`, `playwright/.auth/`(로그인 세션 포함), `playwright-report/`, `test-results/`, `node_modules/`는 절대 커밋하지 않는다.
 
 ## 사전 준비 (구현 시작 전에 확인)
@@ -328,18 +329,7 @@ import { test, expect } from '@playwright/test';
 import { gotoAndEnableSemantics } from '../support/flutter-semantics';
 import { requireEnv } from '../support/env';
 
-const MODULE_LABELS = [
-  '마스터',
-  '오더 생성',
-  '운송계획',
-  '실행',
-  '트래킹',
-  '실적',
-  '정산',
-  'KPI',
-];
-
-test('올바른 계정으로 로그인하면 메인 화면으로 이동하고 내비게이션이 보인다', async ({
+test('올바른 계정으로 로그인하면 메인 화면으로 이동한다', async ({
   page,
 }) => {
   await gotoAndEnableSemantics(page, '/login');
@@ -349,11 +339,7 @@ test('올바른 계정으로 로그인하면 메인 화면으로 이동하고 �
   await page.getByRole('button', { name: '로그인', exact: true }).click();
 
   await page.waitForURL('**/master');
-  for (const label of MODULE_LABELS) {
-    await expect(
-      page.getByRole('button', { name: label, exact: true }),
-    ).toBeVisible();
-  }
+  await expect(page.getByText('마스터', { exact: true })).toBeVisible();
 });
 
 test('잘못된 비밀번호로 로그인하면 에러 메시지가 표시되고 로그인 화면에 머문다', async ({
@@ -439,7 +425,7 @@ npm test -- tests/auth/login.spec.ts
 ```
 
 Expected: 3개 테스트 모두 PASS.
-- `getByRole('button', { name: label, exact: true })`로 내비게이션 메뉴가 안 잡히면, `npx playwright test tests/auth/login.spec.ts --debug`로 실제 접근성 트리를 확인해 role을 `tab` 등으로 교체한다(Flutter의 NavigationRail/NavigationBar 항목이 정확히 어떤 ARIA role로 노출되는지는 실행해서 확인이 필요한 부분이라고 설계 문서에 명시되어 있다).
+- `getByText('마스터', { exact: true })`가 안 잡히면 `npx playwright test tests/auth/login.spec.ts --debug`로 실제 접근성 트리를 확인한다.
 - 에러 메시지 텍스트가 다르게 보이면 `../vtms/lib/core/auth/firebase_auth_service.dart`의 `_messageFor`를 다시 확인한다(코드가 바뀌었을 수 있음).
 
 - [ ] **Step 7: Commit**
@@ -479,7 +465,7 @@ const modules: Array<{ label: string; path: string }> = [
 ];
 
 for (const { label, path } of modules) {
-  test(`${label} 메뉴 클릭 시 ${path} 화면이 콘솔 에러 없이 로드된다`, async ({
+  test(`${path} 화면이 콘솔 에러 없이 로드된다 (${label})`, async ({
     page,
   }) => {
     const consoleErrors: string[] = [];
@@ -488,8 +474,7 @@ for (const { label, path } of modules) {
     });
     page.on('pageerror', (err) => consoleErrors.push(err.message));
 
-    await gotoAndEnableSemantics(page, '/master');
-    await page.getByRole('button', { name: label, exact: true }).click();
+    await gotoAndEnableSemantics(page, path);
 
     await expect(page).toHaveURL(new RegExp(`${path}$`));
     expect(
@@ -499,6 +484,8 @@ for (const { label, path } of modules) {
   });
 }
 ```
+
+**참고:** 원래 설계는 좌측 내비게이션 레일의 각 메뉴를 클릭해 이동하는 방식이었으나, Task 2 구현 중 내비게이션 레일이 접근성 트리에 전혀 노출되지 않는다는 사실이 확인되어(Global Constraints 참고) 해시 기반 URL 직접 이동으로 변경했다. `gotoAndEnableSemantics`가 이미 `/#${path}`로 이동하므로 각 모듈에 직접 접근하는 것만으로 "인증된 사용자가 각 모듈 경로에 접근했을 때 에러 없이 렌더링되는가"라는 스모크 테스트의 본래 목적은 그대로 달성된다.
 
 - [ ] **Step 2: 로컬 VTMS 웹 서버가 떠 있는 상태에서 실행**
 
