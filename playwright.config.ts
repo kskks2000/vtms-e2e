@@ -13,8 +13,10 @@ if (!baseURL) {
 
 export default defineConfig({
   testDir: './tests',
+  timeout: 90_000,
   globalSetup: require.resolve('./global-setup'),
   fullyParallel: true,
+  retries: 1,
   reporter: 'html',
   use: {
     baseURL,

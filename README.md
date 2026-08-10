@@ -54,7 +54,27 @@ Flutter의 접근성 활성화 버튼을 자동으로 클릭해 접근성 트리
 ```
 tests/
   support/flutter-semantics.ts   # 접근성 활성화 헬퍼
+  support/env.ts                 # 필수 환경변수 검증 헬퍼
+  support/reliable-fill.ts       # fill()이 커밋되지 않는 레이스를 방어하는 헬퍼
   auth/login.spec.ts             # 로그인 성공/실패/유효성 검사
+  smoke/app-loads.spec.ts        # 로그인 화면 로드 + 접근성 트리 활성화 스모크
   smoke/modules.spec.ts          # 8개 모듈 내비게이션 스모크
 global-setup.ts                  # 1회 로그인 → storageState 저장
 ```
+
+## 알려진 제한사항
+
+- **부팅 pageerror 허용 목록의 실제 범위**: `modules.spec.ts`의
+  `isKnownBootstrapPageError`는 메시지가 정확히 `"Error"`인 pageerror를
+  허용한다. 소스맵이 없는 Flutter 릴리스 빌드에서는 잡히지 않은 Dart
+  예외 대부분이 이 동일한 일반 메시지로 노출되기 때문에, 코드상으로는
+  좁아 보여도 실질적으로는 이 앱의 Dart 예외 채널을 거의 대부분 음소거
+  한다. 따라서 그린 스위트를 "Dart 예외가 전혀 없었다"는 뜻으로 읽으면
+  안 된다. (소스맵 없이는 더 나은 신호가 없고, vtms를 소스맵 포함으로
+  다시 빌드하는 것은 이 프로젝트 범위 밖이다.)
+- **트레이스에 비밀번호 평문 포함**: `retries: 1`이 켜져 있어(재시도
+  시 트레이스를 남기기 위함), 재시도가 발생한 실행의 `trace.zip`/HTML
+  리포트에는 Playwright가 `fill()` 인자를 그대로 기록하기 때문에
+  `TEST_USER_PASSWORD`가 평문으로 남는다. `playwright-report/`와
+  `test-results/`는 이미 `.gitignore`에 포함되어 있어 저장소 유출은
+  아니지만, 이 아티팩트를 공유할 때는 주의해야 한다.

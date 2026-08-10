@@ -7,11 +7,13 @@ import type { Page } from '@playwright/test';
  * 노드(aria-label 등 포함)로 노출되어 getByRole/getByLabel/getByText가
  * 동작한다.
  */
+const SEMANTICS_TIMEOUT_MS = 30_000;
+
 export async function enableFlutterSemantics(page: Page): Promise<void> {
   const placeholder = page.locator('flt-semantics-placeholder');
-  await placeholder.waitFor({ state: 'attached', timeout: 30_000 });
+  await placeholder.waitFor({ state: 'attached', timeout: SEMANTICS_TIMEOUT_MS });
   await placeholder.dispatchEvent('click');
-  await placeholder.waitFor({ state: 'detached', timeout: 30_000 });
+  await placeholder.waitFor({ state: 'detached', timeout: SEMANTICS_TIMEOUT_MS });
 }
 
 export async function gotoAndEnableSemantics(

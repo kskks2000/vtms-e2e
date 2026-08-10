@@ -2,9 +2,9 @@ import { test, expect } from '@playwright/test';
 import { gotoAndEnableSemantics } from '../support/flutter-semantics';
 
 test('로그인 화면이 로드되고 접근성 트리가 활성화된다', async ({ page }) => {
-  // Navigate to login and enable Flutter semantics
-  // Note: This test expects the Flutter app to render an flt-semantics-placeholder
-  // element after loading. The helper will wait up to 90 seconds for it to appear.
+  // flt-semantics-placeholder가 나타나고 사라질 때까지 각각 최대 30초씩
+  // 기다린다(내부 대기 예산 최대 60초). 테스트 타임아웃은 config에서 90초로
+  // 설정되어 있어 이 예산을 넉넉히 수용한다.
   await gotoAndEnableSemantics(page, '/login');
 
   // Once semantics are enabled, these locators should find the form elements

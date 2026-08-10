@@ -3,15 +3,15 @@ import { gotoAndEnableSemantics } from '../support/flutter-semantics';
 
 test.use({ storageState: 'playwright/.auth/user.json' });
 
-const modules: Array<{ label: string; path: string }> = [
-  { label: '마스터', path: '/master' },
-  { label: '오더 생성', path: '/order' },
-  { label: '운송계획', path: '/planning' },
-  { label: '실행', path: '/execution' },
-  { label: '트래킹', path: '/tracking' },
-  { label: '실적', path: '/performance' },
-  { label: '정산', path: '/settlement' },
-  { label: 'KPI', path: '/kpi' },
+const modules: Array<{ label: string; path: string; heading: string }> = [
+  { label: '마스터', path: '/master', heading: '마스터' },
+  { label: '오더 생성', path: '/order', heading: 'ORDER MANAGEMENT · 운송 오더' },
+  { label: '운송계획', path: '/planning', heading: '운송계획' },
+  { label: '실행', path: '/execution', heading: '실행' },
+  { label: '트래킹', path: '/tracking', heading: 'TRACKING · 실시간 추적' },
+  { label: '실적', path: '/performance', heading: 'PERFORMANCE · 운송 실적' },
+  { label: '정산', path: '/settlement', heading: 'SETTLEMENT · 운임 정산' },
+  { label: 'KPI', path: '/kpi', heading: 'EXECUTIVE · 경영 대시보드' },
 ];
 
 // 인증된 화면 어디서나(모듈과 무관, /master 자체에서도) 부팅 직후 100%
@@ -26,17 +26,28 @@ function isKnownBootstrapPageError(message: string): boolean {
 
 // 네이버 지도 client ID가 도메인 제한(라이브 서버 도메인만 허용)에 걸려
 // 있어, 로컬(localhost) 대상 테스트에서는 지도 인증 호출이 401을 반환한다.
-// 트래킹 모듈에서만 발생하는 로컬 전용 알려진 이슈로 허용한다.
+// 트래킹 모듈에서만 발생하는 로컬 전용 알려진 이슈로 허용한다. 라이브
+// 서버(BASE_URL이 localhost/127.0.0.1이 아님) 대상 실행에서는 이 허용을
+// 적용하지 않아, 실제 지도 인증 회귀가 있으면 그대로 실패한다.
 const TRACKING_KNOWN_CONSOLE_ERROR = /oapi\.map\.naver\.com\/v3\/auth/;
+const isLocalBaseURL = /localhost|127\.0\.0\.1/.test(process.env.BASE_URL ?? '');
 
-for (const { label, path } of modules) {
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+for (const { label, path, heading } of modules) {
   test(`${path} 화면이 (알려진 이슈를 제외하면) 에러 없이 로드된다 (${label})`, async ({
     page,
   }) => {
     const consoleErrors: string[] = [];
     page.on('console', (msg) => {
       if (msg.type() !== 'error') return;
-      if (path === '/tracking' && TRACKING_KNOWN_CONSOLE_ERROR.test(msg.text())) {
+      if (
+        path === '/tracking' &&
+        isLocalBaseURL &&
+        TRACKING_KNOWN_CONSOLE_ERROR.test(msg.location().url)
+      ) {
         return;
       }
       consoleErrors.push(msg.text());
@@ -62,7 +73,8 @@ for (const { label, path } of modules) {
       }, path);
     }
 
-    await expect(page).toHaveURL(new RegExp(`${path}$`));
+    await expect(page).toHaveURL(new RegExp(`${escapeRegExp(path)}$`));
+    await expect(page.getByText(heading, { exact: true })).toBeVisible();
     expect(
       consoleErrors,
       `알려진 이슈 외 콘솔 에러 발생:\n${consoleErrors.join('\n')}`,
