@@ -21,7 +21,12 @@ export default defineConfig({
   use: {
     baseURL,
     trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
+    // Flutter 웹은 CanvasKit으로 모든 UI를 단일 <canvas>에 그리므로, 트레이스
+    // 뷰어의 DOM 재구성 스냅샷이 항상 빈 화면으로 나온다(캔버스 픽셀은 DOM에
+    // 없고, 접근성 트리를 켜서 생기는 flt-semantics 노드는 시각 스타일이 없는
+    // 투명 오버레이다). 실제 화면을 확인할 수단이 필요해서 통과한 테스트에도
+    // 스크린샷을 남긴다 — 리포트 용량과 맞바꾼 선택이다.
+    screenshot: 'on',
   },
   projects: [
     {
