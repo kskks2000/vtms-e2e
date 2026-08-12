@@ -20,12 +20,42 @@ function readAccessToken(): string {
   );
 }
 
-function authHeaders(): Record<string, string> {
+export function authHeaders(): Record<string, string> {
   return { Authorization: `Bearer ${readAccessToken()}` };
 }
 
 function apiBaseUrl(): string {
   return requireEnv('API_BASE_URL');
+}
+
+/**
+ * 검색어로 찾은 행을 백엔드 API로 지운다. **테스트의 삭제 검증 경로가 아니다** —
+ * 삭제는 반드시 화면에서 한다(master-ui.ts의 deleteRowViaUi). 이 함수는 테스트가
+ * 중간에 실패해서 UI 삭제까지 도달하지 못했을 때 개발 DB에 찌꺼기를 남기지
+ * 않으려는 안전망이며, afterEach에서만 호출한다. 이미 지워졌으면 조용히 통과한다.
+ */
+export async function cleanupRowsViaApi(
+  masterKey: string,
+  pkName: string,
+  searchValue: string,
+): Promise<void> {
+  const headers = authHeaders();
+  const searchRes = await fetch(
+    `${apiBaseUrl()}/api/master/${masterKey}?q=${encodeURIComponent(searchValue)}&limit=50`,
+    { headers },
+  );
+  if (!searchRes.ok) return;
+  const page = (await searchRes.json()) as {
+    items: Array<Record<string, unknown>>;
+  };
+  for (const item of page.items) {
+    const pk = item[pkName];
+    if (pk === undefined || pk === null) continue;
+    await fetch(
+      `${apiBaseUrl()}/api/master/${masterKey}/${encodeURIComponent(String(pk))}`,
+      { method: 'DELETE', headers },
+    );
+  }
 }
 
 /**

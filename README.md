@@ -75,6 +75,8 @@ tests/
   support/flutter-semantics.ts   # 접근성 활성화 헬퍼
   support/env.ts                 # 필수 환경변수 검증 헬퍼
   support/reliable-fill.ts       # fill()이 커밋되지 않는 레이스를 방어하는 헬퍼
+  support/bundle-preflight.ts    # 로그인 전 확인: 서빙 중인 번들이 API_BASE_URL을 향하는가
+  support/clock-preflight.ts     # 로그인 전 확인: 이 머신의 시계가 느리지 않은가
   support/master-api.ts          # 마스터 CRUD 테스트 데이터를 백엔드 API로 직접 등록/삭제
   auth/login.spec.ts             # 로그인 성공/실패/유효성 검사
   smoke/app-loads.spec.ts        # 로그인 화면 로드 + 접근성 트리 활성화 스모크
@@ -84,6 +86,21 @@ global-setup.ts                  # 1회 로그인 → storageState 저장
 ```
 
 ## 알려진 제한사항
+
+- **시계가 1초만 느려도 로그인이 전부 막힌다 (vtms 백엔드 이슈)**: 로그인
+  화면은 백엔드에 비밀번호를 직접 보내지 않고, 먼저 Firebase로 인증해 ID
+  토큰을 받은 뒤 그 토큰을 `POST /api/auth/firebase`로 넘긴다. 토큰의 `iat`는
+  Google이 실제 시각으로 찍는데 검증은 로컬 백엔드가 자기 시계로 하므로,
+  이 머신의 시계가 느리면 방금 받은 토큰이 "미래에 발급된 토큰"이 된다.
+  `../vtms/backend/app/core/firebase.py`가 `verify_firebase_token()`을
+  `clock_skew_in_seconds` 없이 호출하고 google-auth의 기본 허용치가 0초라,
+  1초 오차로도 401 `Token used too early`가 난다(실측 확인). 앱은 이 401을
+  화면에 표시하지 않아 증상이 `waitForURL` 30초 타임아웃으로만 보인다 —
+  잘못 빌드된 번들과 완전히 같은 증상이다. 두 원인을 구분하려고
+  `global-setup.ts`가 로그인 전에 `bundle-preflight`와 `clock-preflight`를
+  각각 돌린다. 시계가 밀렸으면 `sudo sntp -sS time.apple.com`으로 맞춘다.
+  근본 해결(백엔드에 `clock_skew_in_seconds=10` 지정)은 vtms 쪽 변경이라
+  이 저장소에서는 하지 않는다.
 
 - **부팅 pageerror 허용 목록의 실제 범위**: `modules.spec.ts`의
   `isKnownBootstrapPageError`는 메시지가 정확히 `"Error"`인 pageerror를
