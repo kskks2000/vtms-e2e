@@ -102,6 +102,19 @@ global-setup.ts                  # 1회 로그인 → storageState 저장
   근본 해결(백엔드에 `clock_skew_in_seconds=10` 지정)은 vtms 쪽 변경이라
   이 저장소에서는 하지 않는다.
 
+- **개발 서버로 서빙하면 앱이 스스로 시작하지 않는다**: `flutter run -d
+  web-server`로 띄운 경우 DWDS가 디버그 서비스 접속을 기다리며 `main()`을
+  붙잡아 둔다. Playwright가 띄우는 브라우저는 그 연결을 만들지 않으므로,
+  DDC 모듈을 전부 받고 CanvasKit까지 로드한 뒤에도 앱이 영영 렌더링되지
+  않는다(60초까지 실측 — `flutter-view` 0개, 실패·지연 요청 0건). 증상은
+  `flt-semantics-placeholder` 타임아웃 하나뿐이라 원인이 드러나지 않는다.
+  `flutter-semantics.ts`의 `startAppIfDwdsIsHoldingMain`이 5초 안에 렌더링이
+  없으면 DWDS가 노출해 둔 `window.$dartRunMain`을 직접 호출해 넘어간다.
+  릴리스 번들을 정적 서빙할 때는 이 훅이 없어 아무 일도 하지 않는다.
+  개발 서버는 디버그 DDC 빌드라 릴리스 번들보다 느리고 DWDS가 콘솔에
+  `Bad state: Not connected to an application` pageerror를 계속 흘리므로,
+  스위트를 안정적으로 돌리려면 릴리스 번들 정적 서빙이 낫다.
+
 - **부팅 pageerror 허용 목록의 실제 범위**: `modules.spec.ts`의
   `isKnownBootstrapPageError`는 메시지가 정확히 `"Error"`인 pageerror를
   허용한다. 소스맵이 없는 Flutter 릴리스 빌드에서는 잡히지 않은 Dart
