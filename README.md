@@ -5,13 +5,30 @@ VTMS 웹 앱(Flutter web)에 대한 Playwright E2E 테스트 프로젝트. `../v
 
 ## 준비
 
-1. `../vtms`에서 프로덕션 빌드를 만들고 정적 서버로 서빙한다:
+1. `../vtms`에서 프로덕션 빌드를 만들고, **백엔드가 그 번들을 같은 오리진에서
+   서빙하게 한다**(운영과 동일한 구성):
    ```bash
    cd ../vtms
-   API_BASE_URL=http://localhost:8000 bash scripts/build_web.sh
-   cd build/web && python3 -m http.server 3000
+   PATH="$HOME/development/flutter/bin:$PATH" bash scripts/build_web.sh
+   cd backend && .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
    ```
-   (주의: `flutter run -d web-server`는 hot-reload 개발 서버라 Playwright 자동화와 호환되지 않습니다. 반드시 프로덕션 빌드로 정적 서빙을 해야 합니다.)
+   `backend/.env`의 `FRONTEND_DIST`가 `build/web`을 가리키면 `app/main.py`가 그
+   폴더를 `/`에 마운트한다. 앱·API·`/docs`가 전부 `:8000` 하나에서 나온다.
+
+   **`API_BASE_URL`을 주입하지 않는 것이 핵심이다.** 빈 값이면 앱이 상대경로
+   (`/api/...`)로 백엔드를 부르므로 로컬 번들이 곧 배포 번들이 된다 — 배포 직전에
+   `API_BASE_URL`을 빼고 다시 빌드해야 하는 함정이 사라지고, 별도 정적 서버도
+   CORS 설정도 필요 없다.
+
+   (별도 오리진 구성도 여전히 동작한다: `API_BASE_URL=http://localhost:8000`을
+   주입해 빌드하고 `cd build/web && python3 -m http.server 3000`으로 서빙한 뒤
+   `.env.local`을 그에 맞추면 된다. 대신 위의 재빌드 함정을 직접 관리해야 하고,
+   `bundle-preflight`가 매번 번들을 검사하게 된다.)
+
+   (주의: `flutter run -d web-server`는 hot-reload 개발 서버다. DWDS가 `main()`을
+   붙잡아 두는 문제는 `flutter-semantics.ts`가 우회하지만, 디버그 DDC 빌드라
+   릴리스 번들보다 부팅이 느리고 콘솔에 DWDS 오류가 계속 흘러 스위트가 불안정해진다.
+   기본 경로로 쓰지 않는다 — 자세한 내용은 「알려진 제한사항」 참고.)
 
 2. 이 저장소에서 의존성을 설치한다:
    ```bash
@@ -23,8 +40,12 @@ VTMS 웹 앱(Flutter web)에 대한 Playwright E2E 테스트 프로젝트. `../v
    ```bash
    cp .env.example .env.local
    ```
-   - `BASE_URL`: `http://localhost:3000` (위의 정적 서버 주소, CORS를 위해 127.0.0.1이 아닌 localhost 사용)
-   - `API_BASE_URL`: `http://localhost:8000` (VTMS 백엔드 주소. 마스터 CRUD 테스트가 데이터 정리를 위해 백엔드 API를 직접 호출할 때 쓴다 — 왜 UI 삭제를 안 쓰는지는 "알려진 제한사항" 참고)
+   - `BASE_URL`: `http://127.0.0.1:8000` (위 백엔드 주소. 앱을 같은 오리진에서 서빙하므로 API_BASE_URL과 같다)
+   - `API_BASE_URL`: `http://127.0.0.1:8000` (VTMS 백엔드 주소. 마스터 CRUD 테스트가 데이터 정리를 위해 백엔드 API를 직접 호출할 때 쓴다 — 왜 UI 삭제를 안 쓰는지는 "알려진 제한사항" 참고)
+
+   두 값이 같으면 `bundle-preflight`가 검사를 건너뛴다. same-origin에서는 상대경로가
+   항상 옳아서 이 검사가 막던 실패 모드(배포용 번들을 다른 오리진에서 서빙) 자체가
+   존재하지 않는다.
    - `TEST_USER_EMAIL` / `TEST_USER_PASSWORD`: 실제로 로그인 가능한 VTMS 테스트 계정
 
 ## 실행

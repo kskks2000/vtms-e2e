@@ -105,7 +105,22 @@ export async function createRow(
   await page.getByRole('button', { name: '등록', exact: true }).dispatchEvent('click');
 }
 
-/** 검색 결과 첫 행의 수정 버튼을 눌러 값 하나를 바꾸고 저장한다. */
+/**
+ * 검색 결과 첫 행의 수정 버튼을 눌러 값 하나를 바꾸고 저장한다.
+ *
+ * 저장 후 **목록으로 돌아온 것까지 확인하고** 반환한다. 수정 폼은 모달이 아니라
+ * 화면 전환이다 — `master_screen.dart`가 `_mode`를 바꿔 목록 대신 `MasterFormPage`를
+ * 그린다. 그리고 `_submitForm`은 update API가 성공했을 때만 `_Mode.list`로 돌아가고
+ * 실패하면 폼을 그대로 둔 채 에러 메시지를 돌려준다. 그래서 목록 복귀를 기다리는
+ * 것이 곧 "저장이 성공했다"는 확인이고, 저장 실패가 호출부의 모호한 텍스트 대기
+ * 타임아웃이 아니라 여기서 드러난다.
+ *
+ * 판정에는 `selectMaster`가 쓰는 것과 같은 툴바 버튼을 재사용한다. 폼 모드에서는
+ * 렌더링되지 않고, 폼의 제출 버튼은 '저장'/'등록'이라 이름이 겹치지 않는다.
+ *
+ * 목록 **내용**이 갱신되는 것까지는 보지 않는다. `_submitForm`이 `_loadRows()`를
+ * await 없이 호출하므로 재조회는 그 뒤에 따로 끝난다 — 그건 호출부의 assert 몫이다.
+ */
 export async function editFirstRow(
   page: Page,
   meta: MasterMeta,
@@ -121,6 +136,9 @@ export async function editFirstRow(
 
   await fillReliably(page.getByLabel(edit.label), edit.value);
   await page.getByRole('button', { name: '저장', exact: true }).dispatchEvent('click');
+  await expect(
+    page.getByRole('button', { name: `${meta.label} 등록`, exact: true }),
+  ).toBeVisible({ timeout: LIST_TIMEOUT_MS });
 }
 
 /**

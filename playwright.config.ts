@@ -26,6 +26,13 @@ if (!Number.isFinite(slowMo) || slowMo < 0) {
 export default defineConfig({
   testDir: './tests',
   timeout: 90_000,
+  // expect 의 기본 타임아웃은 5초다. 스위트에는 타임아웃을 명시하지 않은 expect 가
+  // 24곳 있고, 그중 "부팅 직후 getByText('마스터')" 패턴만 6곳이다(masters-crud,
+  // partners-crud x2, login, modules, workflow). 실측상 이 대기는 최대 2978ms 까지
+  // 갔다 — 5초 예산의 60%다. 개별 줄에 타임아웃을 붙이면 같은 패턴이 남은 곳에서
+  // 다시 터지므로 기본값 자체를 올린다. 값은 master-ui.ts 의 LIST_TIMEOUT_MS 와
+  // 맞춰 스위트의 대기 예산을 하나로 유지한다(테스트 타임아웃 90초에는 여유가 충분).
+  expect: { timeout: 10_000 },
   globalSetup: require.resolve('./global-setup'),
   fullyParallel: true,
   retries: 1,

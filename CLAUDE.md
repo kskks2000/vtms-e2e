@@ -30,9 +30,17 @@
 고치지 말고, **무엇이 왜 잘못됐는지와 사용자가 직접 실행할 정확한 명령**을
 제시하고 멈춘다.
 
-자주 나오는 사례 — 로그인이 `global-setup`에서 타임아웃하고 콘솔에
-`501 Unsupported method ('POST')`가 찍히면, 서빙 중인 번들이 배포용
-(same-origin 상대경로)이라는 뜻이다. `scripts/build_web.sh`는 `API_BASE_URL`이
+### 기본 로컬 구성은 same-origin 이다
+
+`API_BASE_URL` 주입 없이 빌드한 번들을 백엔드(`:8000`)가 `FRONTEND_DIST`로 함께
+서빙하고, `.env.local`의 `BASE_URL`과 `API_BASE_URL`이 같은 값이다. 이 구성에서는
+상대경로가 항상 옳으므로 아래 "잘못된 번들" 실패 모드가 아예 생기지 않고,
+`bundle-preflight`도 origin 이 같으면 검사를 건너뛴다. 두 값이 다르게 설정된
+저장소를 만났을 때만 아래를 적용한다.
+
+자주 나오는 사례 (별도 오리진 구성일 때만) — 로그인이 `global-setup`에서
+타임아웃하고 콘솔에 `501 Unsupported method ('POST')`가 찍히면, 서빙 중인 번들이
+배포용(same-origin 상대경로)이라는 뜻이다. `scripts/build_web.sh`는 `API_BASE_URL`이
 비어 있어도 `--dart-define=API_BASE_URL=`(빈 문자열)을 넘겨
 `lib/core/config/app_config.dart`의 기본값 `http://localhost:8000`을
 덮어쓴다. 시계 오차(`Token used too early`)와 증상이 똑같으니 혼동하지 말 것.
