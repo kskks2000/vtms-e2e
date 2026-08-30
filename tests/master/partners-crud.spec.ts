@@ -2,11 +2,20 @@ import { test, expect, type Page } from '@playwright/test';
 import { gotoAndEnableSemantics } from '../support/flutter-semantics';
 import { fillReliably, fillFieldsReliably } from '../support/reliable-fill';
 import { createPartnerViaApi, deletePartnerByCode } from '../support/master-api';
+import { purgeRowsViaDb } from '../support/master-purge';
+import { assertCleanupDbMatchesTarget } from '../support/cleanup-target';
 
 test.use({ storageState: 'playwright/.auth/user.json' });
 
+// 난수가 붙어 있는 이유: `uq_partners_code`는 `(tenant_id, code) WHERE
+// deleted_at IS NULL` 부분 유니크 인덱스라 살아있는 행끼리 코드가 겹치면 등록이
+// 거부된다("중복되거나 제약 조건에 맞지 않는 값입니다"). 이 파일의 두 테스트는
+// `fullyParallel: true`로 서로 다른 워커에서 동시에 도는데, `Date.now()`만 쓰면
+// 같은 밀리초에 같은 코드를 만들어 충돌한다(실측 확인 — 등록 테스트가 90초
+// 타임아웃 후 재시도로만 통과). masters-crud의 `uniqueToken()`과 같은 형식으로
+// 맞춘다.
 function uniquePartnerCode(): string {
-  return `E2E-PARTNER-${Date.now()}`;
+  return `E2E-PARTNER-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
 
 // 검색창은 labelText가 아니라 hintText만 쓴다(master_screen.dart의
@@ -32,6 +41,12 @@ async function searchAndWaitForSingleResult(
 // 그 중 화면이 열렸을 때 기본으로 선택되는 첫 번째 탭이다. 등록/수정만
 // 다룬다 — 삭제 확인 다이얼로그는 알려진 버그(README 참고)로 제외했다.
 test.describe('마스터 · 거래처 CRUD', () => {
+  // 물리 정리(purgeRowsViaDb)가 DB에 직접 붙고, 그 DB는 API_BASE_URL이 아니라
+  // ../vtms/backend 설정에서 온다. 쓰기 전에 같은 DB인지 확인한다.
+  test.beforeAll(async () => {
+    await assertCleanupDbMatchesTarget();
+  });
+
   test('거래처를 등록하면 검색 결과에 나타난다', async ({ page }) => {
     const code = uniquePartnerCode();
     try {
@@ -65,6 +80,8 @@ test.describe('마스터 · 거래처 CRUD', () => {
       await expect(page.getByText(code, { exact: true })).toBeVisible();
     } finally {
       await deletePartnerByCode(code);
+      // API 삭제는 소프트 삭제라 행이 DB에 남는다 — master-purge.ts 참고.
+      await purgeRowsViaDb('partners', code);
     }
   });
 
@@ -94,6 +111,8 @@ test.describe('마스터 · 거래처 CRUD', () => {
       await expect(page.getByText('E2E 수정 후', { exact: true })).toBeVisible();
     } finally {
       await deletePartnerByCode(code);
+      // API 삭제는 소프트 삭제라 행이 DB에 남는다 — master-purge.ts 참고.
+      await purgeRowsViaDb('partners', code);
     }
   });
 });

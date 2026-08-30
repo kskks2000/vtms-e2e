@@ -101,6 +101,8 @@ tests/
   support/master-api.ts          # 마스터 CRUD 테스트 데이터를 백엔드 API로 직접 등록/삭제
   support/cleanup-target.ts      # 워크플로 정리 DB가 테스트 대상과 같은 DB인지 확인
   support/cleanup-db-identity.py # 위 확인용 읽기 전용 DB 조회 (vtms venv 에서 실행)
+  support/master-purge.ts        # 마스터 테스트가 만든 행을 토큰으로 물리 삭제
+  support/master-purge.py        # 위 물리 삭제의 DB 실행부 (vtms venv 에서 실행)
   support/workflow-cleanup.py    # 워크플로가 만든 오더/운송을 DB에서 직접 정리
   auth/login.spec.ts             # 로그인 성공/실패/유효성 검사
   smoke/app-loads.spec.ts        # 로그인 화면 로드 + 접근성 트리 활성화 스모크
@@ -228,3 +230,28 @@ global-setup.ts                  # 1회 로그인 → storageState 저장
   전체 tenant를 세므로 같은 DB라도 값이 다르다.) 2026-08-30 실측으로
   가동계 `www.logistics.ai.kr`와 로컬 백엔드는 같은
   DB(`db.logistics.ai.kr/dblogis/vtms`)를 본다.
+
+- **마스터 삭제는 소프트 삭제라 DB에 행이 쌓인다 (그래서 물리 정리를
+  덧붙인다)**: 마스터 23종 중 9종(`partners`, `locations`, `zones`,
+  `vehicles`, `drivers`, `users`, `gl_codes`, `accessorial_types`,
+  `departments`)은 `soft_delete_col = "deleted_at"`이라 화면 삭제도 API
+  삭제도 `UPDATE ... SET deleted_at = now()`로 끝난다. 화면·API·검색이 전부
+  `deleted_at IS NULL`로 거르기 때문에 겉으로는 "정리 완료"로 보이지만 행은
+  영구히 남고, 실행 한 번마다 9종 × 1건씩 누적된다(실측 2026-08-30: 447건이
+  쌓여 있었다). 그래서 각 테스트의 `finally`가 HTTP 정리(`master-api.ts`)
+  뒤에 `master-purge.ts`의 `purgeRowsViaDb`로 물리 삭제까지 한다. 접두사
+  `E2E%`로 뭉뚱그려 지우지 않고 **그 테스트의 고유 토큰**에 걸리는 행만
+  지운다 — `fullyParallel: true`라 워커 5개가 동시에 돌기 때문에 접두사로
+  지우면 다른 테스트가 쓰고 있는 행을 지운다. `master-purge.py`는 토큰이
+  `E2E-...` 형식이 아니면 거부한다. 이 경로도 DB에 직접 붙으므로
+  `assertCleanupDbMatchesTarget` 가드를 `beforeAll`에서 함께 쓴다.
+
+- **테스트 데이터 토큰에는 반드시 난수를 넣는다**: `uq_partners_code`는
+  `(tenant_id, code) WHERE deleted_at IS NULL` 부분 유니크 인덱스다.
+  `partners-crud`의 두 테스트는 서로 다른 워커에서 동시에 도는데, 코드를
+  `E2E-PARTNER-${Date.now()}`처럼 시각만으로 만들면 같은 밀리초에 같은 값이
+  나와 등록이 거부된다("중복되거나 제약 조건에 맞지 않는 값입니다"). 증상은
+  90초 테스트 타임아웃이라 원인이 드러나지 않는다(실측 확인). `Date.now()`
+  뒤에 난수를 붙여 막는다 — `masters-crud`의 `uniqueToken()`과 같은 형식.
+  워커들이 같은 `beforeAll` 작업을 하고 나면 시작 시점이 서로 맞춰져 충돌
+  확률이 올라가므로, 무거운 `beforeAll`을 추가할 때 특히 주의한다.

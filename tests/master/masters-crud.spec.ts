@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { gotoAndEnableSemantics } from '../support/flutter-semantics';
 import { cleanupRowsViaApi } from '../support/master-api';
+import { purgeRowsViaDb } from '../support/master-purge';
+import { assertCleanupDbMatchesTarget } from '../support/cleanup-target';
 import { fetchMasterMetaSync, planFor } from '../support/master-meta';
 import {
   createRow,
@@ -24,6 +26,13 @@ test.use({ storageState: 'playwright/.auth/user.json' });
  * 메타데이터는 수집 시점에 동기로 읽는다(master-meta.ts의 주석 참고).
  */
 const masters = fetchMasterMetaSync();
+
+// 물리 정리(purgeRowsViaDb)가 DB에 직접 붙고, 그 DB는 API_BASE_URL이 아니라
+// ../vtms/backend 설정에서 온다. 두 대상이 갈라지면 엉뚱한 DB를 지우므로 쓰기
+// 전에 같은 DB인지 확인한다 — 자세한 사유는 cleanup-target.ts 참고.
+test.beforeAll(async () => {
+  await assertCleanupDbMatchesTarget();
+});
 
 function uniqueToken(): string {
   return `E2E-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -59,6 +68,9 @@ for (const meta of masters) {
       await deleteFirstRowViaUi(page);
     } finally {
       await cleanupRowsViaApi(meta.key, meta.pk, token);
+      // API 삭제는 9종에서 소프트 삭제로 끝나 행이 DB에 남는다. 실행마다
+      // 누적되므로 물리 삭제까지 한다 — 자세한 사유는 master-purge.ts 참고.
+      await purgeRowsViaDb(meta.key, token);
     }
   });
 }
