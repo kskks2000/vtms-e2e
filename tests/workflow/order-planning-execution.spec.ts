@@ -5,9 +5,17 @@ import { expect, test, type Page } from '@playwright/test';
 import { gotoAndEnableSemantics } from '../support/flutter-semantics';
 import { authHeaders } from '../support/master-api';
 import { fillReliably } from '../support/reliable-fill';
+import { assertCleanupDbMatchesTarget } from '../support/cleanup-target';
 
 test.use({ storageState: 'playwright/.auth/user.json' });
 test.setTimeout(180_000);
+
+// 이 스펙만 정리를 DB 직접 SQL로 한다(공개 API가 completed 오더를 못 지운다).
+// 그 DB는 API_BASE_URL이 아니라 ../vtms/backend 설정에서 오므로, 쓰기 전에 두
+// 대상이 같은 DB인지 확인한다 — 자세한 사유는 cleanup-target.ts 참고.
+test.beforeAll(async () => {
+  await assertCleanupDbMatchesTarget();
+});
 
 const execFileAsync = promisify(execFile);
 

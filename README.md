@@ -99,6 +99,9 @@ tests/
   support/bundle-preflight.ts    # 로그인 전 확인: 서빙 중인 번들이 API_BASE_URL을 향하는가
   support/clock-preflight.ts     # 로그인 전 확인: 이 머신의 시계가 느리지 않은가
   support/master-api.ts          # 마스터 CRUD 테스트 데이터를 백엔드 API로 직접 등록/삭제
+  support/cleanup-target.ts      # 워크플로 정리 DB가 테스트 대상과 같은 DB인지 확인
+  support/cleanup-db-identity.py # 위 확인용 읽기 전용 DB 조회 (vtms venv 에서 실행)
+  support/workflow-cleanup.py    # 워크플로가 만든 오더/운송을 DB에서 직접 정리
   auth/login.spec.ts             # 로그인 성공/실패/유효성 검사
   smoke/app-loads.spec.ts        # 로그인 화면 로드 + 접근성 트리 활성화 스모크
   smoke/modules.spec.ts          # 8개 모듈 내비게이션 스모크
@@ -205,3 +208,23 @@ global-setup.ts                  # 1회 로그인 → storageState 저장
   - **상단 타임라인 필름스트립**: 썸네일에 마우스를 올리면 그 시점의
     실제 화면이 확대된다. DOM 재구성이 아니라 진짜 스크린캐스트 프레임이다.
   - **headed / `--debug` 실행**: 위 "눈으로 따라가며 보기" 참고.
+
+- **워크플로 스펙의 정리는 API가 아니라 DB에 직접 붙는다 (그래서 대상
+  일치 가드가 있다)**: `order-planning-execution.spec.ts`가 만든 오더는
+  `completed`, 운송은 `closed`로 끝나는데, 공개 API는 `draft` 오더와
+  `planned` 운송만 지울 수 있다(`../vtms/backend/app/orders/service.py`의
+  `delete_order`, `app/planning/service.py`의 `delete_shipment`). 정리
+  편의를 위해 제품의 삭제 규칙을 느슨하게 만들 수는 없으므로,
+  `tests/support/workflow-cleanup.py`가 고유 notes 토큰을 키로 DB에 직접
+  SQL을 날린다. 마스터 스펙의 정리(`master-api.ts`)가 HTTP로
+  `API_BASE_URL`을 호출해 대상을 자동으로 따라가는 것과 다르다 — 이쪽이
+  보는 DB는 `../vtms/backend` 설정에서 온다. 두 대상이 갈라지면 스위트는
+  **그린인 채로** (a) 만든 오더를 대상 서버에 남기고 (b) 엉뚱한 DB의 행을
+  지울 수 있다. `tests/support/cleanup-target.ts`의
+  `assertCleanupDbMatchesTarget`이 `beforeAll`에서 이걸 막는다: 대상 API가
+  아는 오더 하나를 정리 DB에서 같은 id로 조회해 `order_no`가 일치하는지
+  대조하고, 다르면 아무것도 쓰기 전에 실행을 멈춘다. (오더 **건수**는
+  판정에 쓰지 않는다 — API 응답은 tenant로 걸러지지만 DB `count(*)`는
+  전체 tenant를 세므로 같은 DB라도 값이 다르다.) 2026-08-30 실측으로
+  가동계 `www.logistics.ai.kr`와 로컬 백엔드는 같은
+  DB(`db.logistics.ai.kr/dblogis/vtms`)를 본다.
